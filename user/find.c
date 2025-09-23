@@ -22,43 +22,40 @@ void find(char *path, char *name) {
 
     switch (st.type) {
     case T_FILE:
-        // If it's a file, check if the name matches
+        //if it's a file, check if the name matches
         if (strcmp(path + strlen(path) - strlen(name), name) == 0) {
             printf("%s\n", path);
         }
         break;
 
     case T_DIR:
-        // If path is too long, skip
+        //if path is too long, skip
         if (strlen(path) + 1 + DIRSIZ + 1 > sizeof buf) {
             printf("find: path too long\n");
             break;
         }
         
-        // Copy path to buffer and prepare for appending
+        //copy path to buffer and prepare for appending
         strcpy(buf, path);
         p = buf + strlen(buf);
         *p++ = '/';
         
-        // Read directory entries
         while (read(fd, &de, sizeof(de)) == sizeof(de)) {
             if (de.inum == 0)
                 continue;
             
-            // Skip . and ..
             if (strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0)
                 continue;
             
             // Create full path for this entry
             memmove(p, de.name, DIRSIZ);
             p[DIRSIZ] = 0;
-            
-            // Check if this file matches our target name
+           
             if (strcmp(de.name, name) == 0) {
                 printf("%s\n", buf);
             }
             
-            // If it's a directory, recurse
+            //if it's a directory, recurse
             if (stat(buf, &st) == 0 && st.type == T_DIR) {
                 find(buf, name);
             }
