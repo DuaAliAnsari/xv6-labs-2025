@@ -1,0 +1,12 @@
+#include "kernel/types.h"
+#include "kernel/stat.h"
+#include "user/user.h"
+
+int sleep(int n){
+}
+int main(){
+printf("Program will sleep for 1000 ms"\n)
+sleep(1000)
+print f("this line will be executed after 1000 ms.\n")
+return 0;
+}
