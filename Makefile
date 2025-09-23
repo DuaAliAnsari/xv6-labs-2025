@@ -195,8 +195,11 @@ UPROGS=\
 	$U/_logstress\
 	$U/_forphan\
 	$U/_dorphan\
-
-
+        $U/_sleep\
+        $U/_sixfive\
+        $U/_Memdump\
+        $U/_find\
+        $U/_exec\
 
 
 ifeq ($(LAB),syscall)
@@ -217,7 +220,7 @@ UPROGS += \
 endif
 
 ifeq ($(LAB),lazy)
-UPROGS += \
+XUPROGS += \
 	$U/_lazytests
 endif
 
