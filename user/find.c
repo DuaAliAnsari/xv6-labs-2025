@@ -3,6 +3,7 @@
 #include "user/user.h"
 #include "kernel/fs.h"
 
+// Regular expression matching functions from grep.c
 int matchhere(char*, char*);
 int matchstar(int, char*, char*);
 
@@ -41,17 +42,18 @@ void find(char *path, char *pattern) {
   int fd;
   struct dirent de;
   struct stat st;
-
+  
   if ((fd = open(path, 0)) < 0) {
     return;
   }
-
+  
   if (fstat(fd, &st) < 0) {
     close(fd);
     return;
   }
-
+  
   if (st.type == T_FILE) {
+    // Extract filename from path
     char *fname = path + strlen(path);
     while (fname > path && fname[-1] != '/')
       fname--;
@@ -60,52 +62,52 @@ void find(char *path, char *pattern) {
     close(fd);
     return;
   }
-
+  
   if (st.type != T_DIR) {
     close(fd);
     return;
   }
-
+  
   if (strlen(path) + 1 + DIRSIZ + 1 > sizeof buf) {
     close(fd);
     return;
   }
-
+  
   strcpy(buf, path);
   p = buf + strlen(buf);
   *p++ = '/';
-
+  
   while (read(fd, &de, sizeof(de)) == sizeof(de)) {
     if (de.inum == 0)
       continue;
-
+    
     memmove(p, de.name, DIRSIZ);
     p[DIRSIZ] = 0;
     char *name = p;
-
+    
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
       continue;
-
+    
     if (stat(buf, &st) < 0)
       continue;
-
+    
+    // Check if filename matches the regex pattern
     if (match(pattern, name))
       printf("%s\n", buf);
-
+    
+    // Recursively search subdirectories
     if (st.type == T_DIR)
       find(buf, pattern);
   }
-
   close(fd);
 }
 
 int main(int argc, char *argv[]) {
   if (argc != 3) {
-    fprintf(2, "Usage: find <path> <pattern>\n");
+    printf("Usage: find <path> <pattern>\n");
     exit(1);
   }
-
+  
   find(argv[1], argv[2]);
   exit(0);
 }
-
