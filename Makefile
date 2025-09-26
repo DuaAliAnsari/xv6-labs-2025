@@ -197,9 +197,10 @@ UPROGS=\
 	$U/_dorphan\
         $U/_sleep\
         $U/_sixfive\
-        $U/_Memdump\
+        $U/_memdump\
         $U/_find\
         $U/_exec\
+        $U/_uptime\
 
 
 ifeq ($(LAB),syscall)
