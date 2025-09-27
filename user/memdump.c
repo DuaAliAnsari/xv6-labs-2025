@@ -1,103 +1,106 @@
 #include "kernel/types.h"
 #include "user/user.h"
+#include "kernel/fcntl.h"
 
-#define NULL 0   // since xv6 doesn't have stddef.h
-
-void memdump(char *fmt, char *data) {
-    while (*fmt) {
-        switch (*fmt) {
-        case 'i': {
-            int val = *(int *)data;
-            printf("%d\n", val);
-            data += sizeof(int);
-            break;
-        }
-        case 'p': {
-            // xv6 printf can't handle %llx, so split into two 32-bit parts
-            uint low = *(uint *)data;
-            uint high = *((uint *)data + 1);
-            printf("%x%x\n", high, low);
-            data += 8;
-            break;
-        }
-        case 'h': {
-            short val = *(short *)data;
-            printf("%d\n", val);
-            data += sizeof(short);
-            break;
-        }
-        case 'c': {
-            char val = *data;
-            printf("%c\n", val);
-            data += 1;
-            break;
-        }
-        case 's': {
-            char *str = *(char **)data;
-            if (str)
-                printf("%s\n", str);
-            else
-                printf("(null)\n");
-            data += sizeof(char *);
-            break;
-        }
-        case 'S': {
-            printf("%s\n", data);
-            return; // done
-        }
-        default:
-            printf("Unknown format: %c\n", *fmt);
-            return;
-        }
-        fmt++;
-    }
-}
+void memdump(char *fmt, char *data);
 
 int
 main(int argc, char *argv[])
 {
-    if(argc == 1) {
-        // Example 1
-        int x = 61810;
-        short y = 2025;
-        printf("Example 1:\n");
-        memdump("i", (char *)&x);
-        memdump("h", (char *)&y);
+  if(argc == 1){
+    printf("Example 1:\n");
+    int a[2] = { 61810, 2025 };
+    memdump("ii", (char*) a);
+    
+    printf("Example 2:\n");
+    memdump("S", "a string");
+    
+    printf("Example 3:\n");
+    char *s = "another";
+    memdump("s", (char *) &s);
 
-        // Example 2
-        char *str1 = "a string";
-        printf("Example 2:\n");
-        memdump("s", (char *)&str1);
-
-        // Example 3
-        char *str2 = "another";
-        printf("Example 3:\n");
-        memdump("s", (char *)&str2);
-
-        // Example 4
-        struct {
-            char c;
-            int i;
-            short h;
-            char z;
-            char *str;
-        } example4 = { 'B', 1819438967, 100, 'z', "xyzzy" };
-
-        printf("Example 4:\n");
-        memdump("cihc s", (char *)&example4);
-
-        // Example 5
-        char *str5 = "hello\nworld";
-        printf("Example 5:\n");
-        memdump("S", str5);
-
-    } else {
-        char buf[512];
-        int n = read(0, buf, sizeof(buf)-1);
-        if(n > 0) {
-            buf[n] = '\0';
-            memdump(argv[1], buf);
-        }
+    struct sss {
+      char *ptr;
+      int num1;
+      short num2;
+      char byte;
+      char bytes[8];
+    } example;
+    
+    example.ptr = "hello";
+    example.num1 = 1819438967;
+    example.num2 = 100;
+    example.byte = 'z';
+    strcpy(example.bytes, "xyzzy");
+    
+    printf("Example 4:\n");
+    memdump("pihcS", (char*) &example);
+    
+    printf("Example 5:\n");
+    memdump("sccccc", (char*) &example);
+  } else if(argc == 2){
+    // format in argv[1], up to 512 bytes of data from standard input.
+    char data[512];
+    int n = 0;
+    memset(data, '\0', sizeof(data));
+    while(n < sizeof(data)){
+      int nn = read(0, data + n, sizeof(data) - n);
+      if(nn <= 0)
+        break;
+      n += nn;
     }
-    exit(0);
+    memdump(argv[1], data);
+  } else {
+    printf("Usage: memdump [format]\n");
+    exit(1);
+  }
+  exit(0);
+}
+
+void
+memdump(char *fmt, char *data)
+{
+  for (int i = 0; fmt[i] != '\0'; i++) {
+    char f = fmt[i];
+    switch (f) {
+    case 'i': { // 4 byte int
+      int val = *(int *)data;
+      printf("%d\n", val);
+      data += 4;
+      break;
+    }
+    case 'p': { // 8 byte pointer/integer in hex
+      uint64 val = *(uint64 *)data;
+      printf("%lx\n", val); 
+      data += 8;
+      break;
+    }
+    case 'h': { // 2 byte short
+      short val = *(short *)data;
+      printf("%d\n", val);
+      data += 2;
+      break;
+    }
+    case 'c': { // single byte
+      uchar val = *(uchar *)data;
+      printf("%c\n", val);
+      data += 1;
+      break;
+    }
+    case 's': { 
+       //next 8 bytes are a pointer to a string
+      char *ptr = *(char **)data;
+       printf("%s\n", ptr);
+       data += 8;
+       break;
+  }
+    case 'S': { // string
+      printf("%s\n", data);
+      return;
+    }
+    default:
+      break;
+    }
+  }
+
 }
