@@ -3,27 +3,19 @@
 #include "user/user.h"
 
 int
-main(int argc, char *argv[])
+main(int argc, char *argv[]) //argc is no. of args, argv contains program name and first real arg
 {
-  int ticks;
-  int start_time, current_time;
-
-  //user argument
-  if(argc != 2){
-    fprintf(2, "Usage: sleep <ticks>\n");
+  if(argc < 2){
+    fprintf(2, "Usage: sleep ticks\n");
     exit(1);
   }
-  //convert string argument to integer
-  ticks = atoi(argv[1]);
 
-  start_time = uptime();
-  //wait until the specified ticks have passed
-  while(1) {
-    current_time = uptime();
-    if(current_time - start_time >= ticks) {
-      break;
-    }
+  int n = atoi(argv[1]);   //convert argument to int
+//sleep for n ticks
+  if (pause(n) < 0) {
+    fprintf(2, "sleep: failed\n");
+    exit(1);
   }
+
   exit(0);
 }
-

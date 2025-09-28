@@ -7,16 +7,19 @@ void memdump(char *fmt, char *data);
 int
 main(int argc, char *argv[])
 {
-  if(argc == 1){
+  if(argc == 1){//no format string so run examples
     printf("Example 1:\n");
     int a[2] = { 61810, 2025 };
+//format = 'ii' so print 2 ints
     memdump("ii", (char*) a);
     
     printf("Example 2:\n");
+//format = 'S', print inline string directly
     memdump("S", "a string");
     
     printf("Example 3:\n");
     char *s = "another";
+//format = 'S' , read pointer to string then print
     memdump("s", (char *) &s);
 
     struct sss {
@@ -34,12 +37,13 @@ main(int argc, char *argv[])
     strcpy(example.bytes, "xyzzy");
     
     printf("Example 4:\n");
+// p - pointer, i int h- short c-char S -inline string
     memdump("pihcS", (char*) &example);
     
     printf("Example 5:\n");
     memdump("sccccc", (char*) &example);
   } else if(argc == 2){
-    // format in argv[1], up to 512 bytes of data from standard input.
+    //format in argv[1], up to 512 bytes of data from standard input
     char data[512];
     int n = 0;
     memset(data, '\0', sizeof(data));
@@ -63,25 +67,25 @@ memdump(char *fmt, char *data)
   for (int i = 0; fmt[i] != '\0'; i++) {
     char f = fmt[i];
     switch (f) {
-    case 'i': { // 4 byte int
+    case 'i': { //4 byte int
       int val = *(int *)data;
       printf("%d\n", val);
       data += 4;
       break;
     }
-    case 'p': { // 8 byte pointer/integer in hex
+    case 'p': { //8 byte pointer/integer in hex
       uint64 val = *(uint64 *)data;
       printf("%lx\n", val); 
       data += 8;
       break;
     }
-    case 'h': { // 2 byte short
+    case 'h': { //2 byte short
       short val = *(short *)data;
       printf("%d\n", val);
       data += 2;
       break;
     }
-    case 'c': { // single byte
+    case 'c': {// single byte
       uchar val = *(uchar *)data;
       printf("%c\n", val);
       data += 1;
@@ -94,7 +98,7 @@ memdump(char *fmt, char *data)
        data += 8;
        break;
   }
-    case 'S': { // string
+    case 'S': { //string
       printf("%s\n", data);
       return;
     }
