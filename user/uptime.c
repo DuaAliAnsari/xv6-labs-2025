@@ -13,4 +13,4 @@ main(int argc, char *argv[])
   // Print the uptime in ticks
   printf("uptime: %d ticks\n", ticks);
   
-  exit(0);
+  exit(0);}
