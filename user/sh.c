@@ -1,19 +1,21 @@
-// Enhanced Shell with Tab Completion, Wait, and Batch Mode
 
 #include "kernel/types.h"
 #include "user/user.h"
 #include "kernel/fcntl.h"
 
 // Parsed command representation
-#define EXEC  1
+#define EXEC  1   
 #define REDIR 2
 #define PIPE  3
 #define LIST  4
 #define BACK  5
 #define MAXARGS 10
+#define HISTORY_SIZE 10
+#define MAX_CMD_LEN 100
 
-// Global variables
-static int batch_mode = 0;  // Flag for batch processing
+// Command history storage
+static char history[HISTORY_SIZE][MAX_CMD_LEN];
+static int history_count = 0;
 
 struct cmd {
   int type;
@@ -53,171 +55,220 @@ struct backcmd {
 
 int fork1(void);
 void panic(char*);
-struct cmd *parsecmd(char*);
-void runcmd(struct cmd*) __attribute__((noreturn));
+struct cmd parsecmd(char);
+void runcmd(struct cmd*) _attribute_((noreturn));
 
-// Helper functions
+// Helper functions for new features
+void add_to_history(char *cmd);
+void show_history(void);
+int try_tab_complete(char *buf, int len);
+
+// Enhanced getcmd - simpler approach
 int
-mystrlen(char *s)
+getcmd(char *buf, int nbuf, int batch_mode)
 {
-  int n;
-  for(n = 0; s[n]; n++)
-    ;
-  return n;
-}
-
-void
-mystrcpy(char *dst, char *src)
-{
-  while((*dst++ = *src++) != 0)
-    ;
-}
-
-int
-mystrcmp(char *s1, char *s2)
-{
-  while(*s1 && *s1 == *s2)
-    s1++, s2++;
-  return (unsigned char)*s1 - (unsigned char)*s2;
-}
-
-// Tab completion function
-void
-tab_complete(char *buf, int pos)
-{
-  char *commands[] = {"ls", "cat", "grep", "find", "sleep", "echo", "mkdir", 
-                      "rm", "cd", "pwd", "wc", "cp", "mv", "chmod", "wait", 0};
-  char partial[50];
-  int i, j, matches = 0;
-  int match_idx = -1;
-  int start_pos;
-  
-  // Find start of current word (go backwards from cursor)
-  start_pos = pos - 1;
-  while(start_pos >= 0 && buf[start_pos] != ' ' && buf[start_pos] != '\t')
-    start_pos--;
-  start_pos++;
-  
-  // Extract partial command
-  int partial_len = pos - start_pos;
-  if(partial_len >= 50 || partial_len == 0) return;
-  
-  for(i = 0; i < partial_len; i++)
-    partial[i] = buf[start_pos + i];
-  partial[partial_len] = 0;
-  
-  // Count matches
-  for(i = 0; commands[i]; i++) {
-    int match = 1;
-    // Check if command starts with partial
-    for(j = 0; j < partial_len; j++) {
-      if(!commands[i][j] || commands[i][j] != partial[j]) {
-        match = 0;
-        break;
-      }
-    }
-    if(match) {
-      matches++;
-      match_idx = i;
-      if(matches == 1) {
-        printf("\n"); // New line before showing completion
-      }
-      if(matches <= 10) { // Limit output
-        printf("%s  ", commands[i]);
-      }
-    }
-  }
-  
-  if(matches > 0) {
-    printf("\n$ %s", buf); // Redisplay prompt and current line
-  }
-  
-  // If exactly one match, auto-complete
-  if(matches == 1) {
-    char *cmd = commands[match_idx];
-    int cmd_len = mystrlen(cmd);
-    
-    // Clear the buffer from start_pos and insert full command
-    for(i = start_pos; i < start_pos + cmd_len; i++) {
-      buf[i] = cmd[i - start_pos];
-    }
-    buf[start_pos + cmd_len] = ' '; // Add space after command
-    buf[start_pos + cmd_len + 1] = 0; // Null terminate
-  }
-}
-
-// Enhanced getcmd with tab completion
-int
-getcmd(char *buf, int nbuf)
-{
-  int pos = 0;
-  char c;
-  
-  // Only print $ prompt in interactive mode
+  // Only show prompt in interactive mode
   if(!batch_mode) {
     write(2, "$ ", 2);
   }
   
   memset(buf, 0, nbuf);
+  gets(buf, nbuf);
+  if(buf[0] == 0) // EOF
+    return -1;
   
-  // If in batch mode, use simple gets
-  if(batch_mode) {
-    gets(buf, nbuf);
-    if(buf[0] == 0) // EOF
-      return -1;
-    return 0;
-  }
-  
-  // Interactive mode with tab completion
-  while(pos < nbuf - 1) {
-    if(read(0, &c, 1) != 1) {
-      return -1; // EOF
-    }
-    
-    if(c == '\t') {
-      // Tab completion
-      tab_complete(buf, pos);
-      continue;
-    } else if(c == '\n') {
-      buf[pos] = c;
-      buf[pos + 1] = 0;
-      write(2, &c, 1); // Echo newline
-      return 0;
-    } else if(c == 127 || c == '\b') {
-      // Backspace
-      if(pos > 0) {
-        pos--;
-        buf[pos] = 0;
-        write(2, "\b \b", 3); // Erase character on screen
+  // Check if user wants tab completion (command ends with tab)
+  if(!batch_mode) {
+    int len = strlen(buf);
+    if(len > 1 && buf[len-2] == '\t') {
+      buf[len-2] = 0; // Remove tab and newline
+      int new_len = try_tab_complete(buf, len-2);
+      if(new_len > 0) {
+        // Add newline back
+        buf[new_len] = '\n';
+        buf[new_len+1] = 0;
+      } else {
+        // Add newline back  
+        buf[len-2] = '\n';
+        buf[len-1] = 0;
       }
-    } else if(c >= 32) {
-      // Printable character
-      buf[pos] = c;
-      pos++;
-      write(2, &c, 1); // Echo character
     }
   }
   
-  buf[pos] = 0;
   return 0;
 }
 
-// Check for built-in commands
+// Simple built-in wait command - FIXED
 int
-handle_builtin(char *cmd)
+is_wait_command(char *cmd)
+{
+  char *p = cmd;
+  
+  // Skip whitespace
+  while(*p == ' ' || *p == '\t') p++;
+  
+  // Check if it's exactly "wait"
+  if(p[0] == 'w' && p[1] == 'a' && p[2] == 'i' && p[3] == 't') {
+    char next = p[4];
+    if(next == 0 || next == '\n' || next == ' ' || next == '\t') {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+// Check for history command
+int
+is_history_command(char *cmd)
 {
   // Skip whitespace
-  while(*cmd == ' ' || *cmd == '\t')
-    cmd++;
+  while(*cmd == ' ' || *cmd == '\t') cmd++;
   
-  // Check for "wait" command
-  if(cmd[0] == 'w' && cmd[1] == 'a' && cmd[2] == 'i' && cmd[3] == 't' &&
-     (cmd[4] == 0 || cmd[4] == '\n' || cmd[4] == ' ')) {
-    wait(0);
-    return 1;
+  // Check if it's "history"
+  if(cmd[0] == 'h' && cmd[1] == 'i' && cmd[2] == 's' && cmd[3] == 't' && 
+     cmd[4] == 'o' && cmd[5] == 'r' && cmd[6] == 'y') {
+    char next = cmd[7];
+    if(next == 0 || next == '\n' || next == ' ' || next == '\t') {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+// Add command to history
+void
+add_to_history(char *cmd)
+{
+  int i, len;
+  
+  // Don't add empty commands or history command itself
+  if(!cmd || cmd[0] == 0 || cmd[0] == '\n' || is_history_command(cmd))
+    return;
+    
+  // Find length, removing newline if present
+  len = 0;
+  while(cmd[len] && cmd[len] != '\n' && len < MAX_CMD_LEN - 1)
+    len++;
+  
+  // Don't add if too short
+  if(len < 1)
+    return;
+  
+  // Copy to history buffer
+  for(i = 0; i < len; i++)
+    history[history_count % HISTORY_SIZE][i] = cmd[i];
+  history[history_count % HISTORY_SIZE][i] = 0;
+  
+  history_count++;
+}
+
+// Show command history
+void
+show_history(void)
+{
+  int i, start, count;
+  
+  if(history_count == 0) {
+    printf("No command history\n");
+    return;
   }
   
-  return 0;
+  // Show up to HISTORY_SIZE recent commands
+  count = (history_count > HISTORY_SIZE) ? HISTORY_SIZE : history_count;
+  start = (history_count > HISTORY_SIZE) ? (history_count - HISTORY_SIZE) : 0;
+  
+  for(i = 0; i < count; i++) {
+    int idx = (start + i) % HISTORY_SIZE;
+    printf("%d: %s\n", start + i + 1, history[idx]);
+  }
+}
+
+// Simple tab completion - FIXED  
+int
+try_tab_complete(char *buf, int len)
+{
+  char *commands[] = {"ls", "cat", "grep", "echo", "mkdir", "rm", "cd", "pwd", 
+                      "cp", "mv", "chmod", "wait", "history", 0};
+  int i, matches = 0, match_idx = -1;
+  int word_len = len;
+  
+  // Remove any trailing spaces to get the actual command
+  while(word_len > 0 && (buf[word_len-1] == ' ' || buf[word_len-1] == '\t'))
+    word_len--;
+  
+  if(word_len == 0)
+    return 0;
+  
+  // Look for matches
+  for(i = 0; commands[i]; i++) {
+    int j, match = 1;
+    int cmd_len = strlen(commands[i]);
+    
+    // Only match if user input is shorter than command
+    if(word_len >= cmd_len)
+      continue;
+    
+    // Check if command starts with what user typed
+    for(j = 0; j < word_len; j++) {
+      if(commands[i][j] != buf[j]) {
+        match = 0;
+        break;
+      }
+    }
+    
+    if(match) {
+      matches++;
+      match_idx = i;
+    }
+  }
+  
+  // If exactly one match, complete it
+  if(matches == 1) {
+    char *cmd = commands[match_idx];
+    int cmd_len = strlen(cmd);
+    int i;
+    
+    // Copy the full command
+    for(i = 0; i < cmd_len && i < MAX_CMD_LEN - 2; i++) {
+      buf[i] = cmd[i];
+    }
+    
+    // Add space
+    if(i < MAX_CMD_LEN - 1) {
+      buf[i] = ' ';
+      i++;
+    }
+    
+    buf[i] = 0;
+    printf("Completed to: %s\n", buf);
+    return i;
+  }
+  
+  // If multiple matches, show them
+  if(matches > 1) {
+    printf("Multiple matches: ");
+    for(i = 0; commands[i]; i++) {
+      int j, match = 1;
+      int cmd_len = strlen(commands[i]);
+      
+      if(word_len >= cmd_len)
+        continue;
+        
+      for(j = 0; j < word_len; j++) {
+        if(commands[i][j] != buf[j]) {
+          match = 0;
+          break;
+        }
+      }
+      
+      if(match) {
+        printf("%s ", commands[i]);
+      }
+    }
+    printf("\n");
+  }
+  
+  return 0; // No completion made
 }
 
 // Execute cmd.  Never returns.
@@ -302,16 +353,16 @@ main(int argc, char *argv[])
 {
   static char buf[100];
   int fd;
+  int batch_mode = 0;
 
-  // Check if we're in batch mode (reading from file)
+  // Check for batch mode
   if(argc > 1) {
     batch_mode = 1;
     fd = open(argv[1], O_RDONLY);
-    if(fd < 0) {
+    if(fd < 0){
       printf("cannot open %s\n", argv[1]);
       exit(1);
     }
-    // Redirect stdin to the file
     close(0);
     dup(fd);
     close(fd);
@@ -326,30 +377,44 @@ main(int argc, char *argv[])
   }
 
   // Read and run input commands.
-  while(getcmd(buf, sizeof(buf)) >= 0){
-    char *cmd = buf;
-    
+  while(getcmd(buf, sizeof(buf), batch_mode) >= 0){
     // Skip leading whitespace
-    while (*cmd == ' ' || *cmd == '\t')
-      cmd++;
-      
-    if (*cmd == '\n' || *cmd == 0) // is a blank command
-      continue;
+    char *cmd = buf;
+    while(*cmd == ' ' || *cmd == '\t') cmd++;
     
-    // Handle built-in commands
-    if(handle_builtin(cmd))
+    if(cmd[0] == 0 || cmd[0] == '\n') // blank line
       continue;
-      
+
+    // Add non-empty commands to history
+    if(!batch_mode) {
+      add_to_history(cmd);
+    }
+
+    // Handle built-in wait command
+    if(is_wait_command(cmd)) {
+      wait(0);
+      continue;
+    }
+    
+    // Handle built-in history command
+    if(is_history_command(cmd)) {
+      show_history();
+      continue;
+    }
+
+    // Handle cd command (must be done by parent)
     if(cmd[0] == 'c' && cmd[1] == 'd' && cmd[2] == ' '){
-      // Chdir must be called by the parent, not the child.
-      cmd[mystrlen(cmd)-1] = 0;  // chop \n
+      // chdir must be called by the parent, not the child.
+      cmd[strlen(cmd)-1] = 0;  // chop \n
       if(chdir(cmd+3) < 0)
         printf("cannot cd %s\n", cmd+3);
-    } else {
-      if(fork1() == 0)
-        runcmd(parsecmd(cmd));
-      wait(0);
+      continue;
     }
+    
+    // Fork and execute other commands
+    if(fork1() == 0)
+      runcmd(parsecmd(cmd));
+    wait(0);
   }
   exit(0);
 }
@@ -371,11 +436,11 @@ fork1(void)
   return pid;
 }
 
-// Keep all the original parsing code
 struct cmd*
 execcmd(void)
 {
   struct execcmd *cmd;
+
   cmd = malloc(sizeof(*cmd));
   memset(cmd, 0, sizeof(*cmd));
   cmd->type = EXEC;
@@ -386,6 +451,7 @@ struct cmd*
 redircmd(struct cmd *subcmd, char *file, char *efile, int mode, int fd)
 {
   struct redircmd *cmd;
+
   cmd = malloc(sizeof(*cmd));
   memset(cmd, 0, sizeof(*cmd));
   cmd->type = REDIR;
@@ -401,6 +467,7 @@ struct cmd*
 pipecmd(struct cmd *left, struct cmd *right)
 {
   struct pipecmd *cmd;
+
   cmd = malloc(sizeof(*cmd));
   memset(cmd, 0, sizeof(*cmd));
   cmd->type = PIPE;
@@ -413,6 +480,7 @@ struct cmd*
 listcmd(struct cmd *left, struct cmd *right)
 {
   struct listcmd *cmd;
+
   cmd = malloc(sizeof(*cmd));
   memset(cmd, 0, sizeof(*cmd));
   cmd->type = LIST;
@@ -425,6 +493,7 @@ struct cmd*
 backcmd(struct cmd *subcmd)
 {
   struct backcmd *cmd;
+
   cmd = malloc(sizeof(*cmd));
   memset(cmd, 0, sizeof(*cmd));
   cmd->type = BACK;
@@ -440,6 +509,7 @@ gettoken(char **ps, char *es, char **q, char **eq)
 {
   char *s;
   int ret;
+
   s = *ps;
   while(s < es && strchr(whitespace, *s))
     s++;
@@ -472,6 +542,7 @@ gettoken(char **ps, char *es, char **q, char **eq)
   }
   if(eq)
     *eq = s;
+
   while(s < es && strchr(whitespace, *s))
     s++;
   *ps = s;
@@ -482,6 +553,7 @@ int
 peek(char **ps, char *es, char *toks)
 {
   char *s;
+
   s = *ps;
   while(s < es && strchr(whitespace, *s))
     s++;
@@ -489,16 +561,17 @@ peek(char **ps, char *es, char *toks)
   return *s && strchr(toks, *s);
 }
 
-struct cmd *parseline(char**, char*);
-struct cmd *parsepipe(char**, char*);
-struct cmd *parseexec(char**, char*);
-struct cmd *nulterminate(struct cmd*);
+struct cmd parseline(char, char);
+struct cmd parsepipe(char, char);
+struct cmd parseexec(char, char);
+struct cmd nulterminate(struct cmd);
 
 struct cmd*
 parsecmd(char *s)
 {
   char *es;
   struct cmd *cmd;
+
   es = s + strlen(s);
   cmd = parseline(&s, es);
   peek(&s, es, "");
@@ -514,6 +587,7 @@ struct cmd*
 parseline(char **ps, char *es)
 {
   struct cmd *cmd;
+
   cmd = parsepipe(ps, es);
   while(peek(ps, es, "&")){
     gettoken(ps, es, 0, 0);
@@ -530,6 +604,7 @@ struct cmd*
 parsepipe(char **ps, char *es)
 {
   struct cmd *cmd;
+
   cmd = parseexec(ps, es);
   if(peek(ps, es, "|")){
     gettoken(ps, es, 0, 0);
@@ -543,6 +618,7 @@ parseredirs(struct cmd *cmd, char **ps, char *es)
 {
   int tok;
   char *q, *eq;
+
   while(peek(ps, es, "<>")){
     tok = gettoken(ps, es, 0, 0);
     if(gettoken(ps, es, &q, &eq) != 'a')
@@ -566,6 +642,7 @@ struct cmd*
 parseblock(char **ps, char *es)
 {
   struct cmd *cmd;
+
   if(!peek(ps, es, "("))
     panic("parseblock");
   gettoken(ps, es, 0, 0);
@@ -584,10 +661,13 @@ parseexec(char **ps, char *es)
   int tok, argc;
   struct execcmd *cmd;
   struct cmd *ret;
+
   if(peek(ps, es, "("))
     return parseblock(ps, es);
+
   ret = execcmd();
   cmd = (struct execcmd*)ret;
+
   argc = 0;
   ret = parseredirs(ret, ps, es);
   while(!peek(ps, es, "|)&;")){
@@ -616,29 +696,35 @@ nulterminate(struct cmd *cmd)
   struct listcmd *lcmd;
   struct pipecmd *pcmd;
   struct redircmd *rcmd;
+
   if(cmd == 0)
     return 0;
+
   switch(cmd->type){
   case EXEC:
     ecmd = (struct execcmd*)cmd;
     for(i=0; ecmd->argv[i]; i++)
       *ecmd->eargv[i] = 0;
     break;
+
   case REDIR:
     rcmd = (struct redircmd*)cmd;
     nulterminate(rcmd->cmd);
     *rcmd->efile = 0;
     break;
+
   case PIPE:
     pcmd = (struct pipecmd*)cmd;
     nulterminate(pcmd->left);
     nulterminate(pcmd->right);
     break;
+
   case LIST:
     lcmd = (struct listcmd*)cmd;
     nulterminate(lcmd->left);
     nulterminate(lcmd->right);
     break;
+
   case BACK:
     bcmd = (struct backcmd*)cmd;
     nulterminate(bcmd->cmd);
