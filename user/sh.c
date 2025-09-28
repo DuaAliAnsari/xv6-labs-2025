@@ -1,4 +1,4 @@
-
+// Shell.
 
 #include "kernel/types.h"
 #include "user/user.h"
@@ -10,13 +10,8 @@
 #define PIPE  3
 #define LIST  4
 #define BACK  5
-#define MAXARGS 10
 
-// Simple history (without complex string operations)
-#define MAXHIST 10
-static char history[MAXHIST][100];
-static int hist_count = 0;
-static int batch_mode = 0;
+#define MAXARGS 10
 
 struct cmd {
   int type;
@@ -54,109 +49,10 @@ struct backcmd {
   struct cmd *cmd;
 };
 
-int fork1(void);
+int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parsecmd(char*);
 void runcmd(struct cmd*) __attribute__((noreturn));
-
-// Simple string length function
-int
-mystrlen(char *s)
-{
-  int n;
-  for(n = 0; s[n]; n++)
-    ;
-  return n;
-}
-
-// Simple string copy
-void
-mystrcpy(char *dst, char *src)
-{
-  while((*dst++ = *src++) != 0)
-    ;
-}
-
-// Simple string compare
-int
-mystrcmp(char *s1, char *s2)
-{
-  while(*s1 && *s1 == *s2)
-    s1++, s2++;
-  return (unsigned char)*s1 - (unsigned char)*s2;
-}
-
-// Add to history
-void
-add_history(char *cmd)
-{
-  if(cmd[0] == 0 || cmd[0] == '\n')
-    return;
-  
-  // Simple copy to history
-  int i = 0;
-  while(cmd[i] && cmd[i] != '\n' && i < 99) {
-    history[hist_count % MAXHIST][i] = cmd[i];
-    i++;
-  }
-  history[hist_count % MAXHIST][i] = 0;
-  hist_count++;
-}
-
-// Print history
-void
-print_history(void)
-{
-  int start = (hist_count > MAXHIST) ? hist_count - MAXHIST : 0;
-  int i;
-  
-  for(i = start; i < hist_count; i++) {
-    printf("%d: %s\n", i + 1, history[i % MAXHIST]);
-  }
-}
-
-// Check if command is "history"
-int
-is_history_cmd(char *cmd)
-{
-  char *hist = "history";
-  int i = 0;
-  
-  // Skip whitespace
-  while(cmd[i] == ' ' || cmd[i] == '\t')
-    i++;
-    
-  // Check if it matches "history"
-  int j = 0;
-  while(hist[j] && cmd[i] == hist[j]) {
-    i++;
-    j++;
-  }
-  
-  // Must be exact match followed by whitespace or newline
-  return hist[j] == 0 && (cmd[i] == 0 || cmd[i] == '\n' || cmd[i] == ' ');
-}
-
-// Check if command is "wait"
-int
-is_wait_cmd(char *cmd)
-{
-  char *wait_str = "wait";
-  int i = 0;
-  
-  // Skip whitespace
-  while(cmd[i] == ' ' || cmd[i] == '\t')
-    i++;
-    
-  // Check if it matches "wait"
-  int j = 0;
-  while(wait_str[j] && cmd[i] == wait_str[j]) {
-    i++;
-    j++;
-  }
-  
-  return wait_str[j] == 0 && (cmd[i] == 0 || cmd[i] == '\n' || cmd[i] == ' ');
-}
 
 // Execute cmd.  Never returns.
 void
@@ -181,14 +77,14 @@ runcmd(struct cmd *cmd)
     if(ecmd->argv[0] == 0)
       exit(1);
     exec(ecmd->argv[0], ecmd->argv);
-    printf("exec %s failed\n", ecmd->argv[0]);
+    fprintf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
 
   case REDIR:
     rcmd = (struct redircmd*)cmd;
     close(rcmd->fd);
     if(open(rcmd->file, rcmd->mode) < 0){
-      printf("open %s failed\n", rcmd->file);
+      fprintf(2, "open %s failed\n", rcmd->file);
       exit(1);
     }
     runcmd(rcmd->cmd);
@@ -238,9 +134,7 @@ runcmd(struct cmd *cmd)
 int
 getcmd(char *buf, int nbuf)
 {
-  if(!batch_mode) {
-    write(2, "$ ", 2);  // Only print $ in interactive mode
-  }
+  write(2, "$ ", 2);
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
   if(buf[0] == 0) // EOF
@@ -249,24 +143,10 @@ getcmd(char *buf, int nbuf)
 }
 
 int
-main(int argc, char *argv[])
+main(void)
 {
   static char buf[100];
   int fd;
-
-  // Check if we're in batch mode (reading from file)
-  if(argc > 1) {
-    batch_mode = 1;
-    fd = open(argv[1], O_RDONLY);
-    if(fd < 0) {
-      printf("cannot open %s\n", argv[1]);
-      exit(1);
-    }
-    // Redirect stdin to the file
-    close(0);
-    dup(fd);
-    close(fd);
-  }
 
   // Ensure that three file descriptors are open.
   while((fd = open("console", O_RDWR)) >= 0){
@@ -279,35 +159,15 @@ main(int argc, char *argv[])
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
     char *cmd = buf;
-    
-    // Skip leading whitespace
     while (*cmd == ' ' || *cmd == '\t')
       cmd++;
-      
     if (*cmd == '\n') // is a blank command
       continue;
-      
-    // Add to history (only in interactive mode)
-    if(!batch_mode)
-      add_history(cmd);
-    
-    // Handle built-in: history
-    if(is_history_cmd(cmd)) {
-      print_history();
-      continue;
-    }
-    
-    // Handle built-in: wait
-    if(is_wait_cmd(cmd)) {
-      wait(0);
-      continue;
-    }
-      
     if(cmd[0] == 'c' && cmd[1] == 'd' && cmd[2] == ' '){
       // Chdir must be called by the parent, not the child.
-      cmd[mystrlen(cmd)-1] = 0;  // chop \n
+      cmd[strlen(cmd)-1] = 0;  // chop \n
       if(chdir(cmd+3) < 0)
-        printf("cannot cd %s\n", cmd+3);
+        fprintf(2, "cannot cd %s\n", cmd+3);
     } else {
       if(fork1() == 0)
         runcmd(parsecmd(cmd));
@@ -320,7 +180,7 @@ main(int argc, char *argv[])
 void
 panic(char *s)
 {
-  printf("%s\n", s);
+  fprintf(2, "%s\n", s);
   exit(1);
 }
 
@@ -328,17 +188,21 @@ int
 fork1(void)
 {
   int pid;
+
   pid = fork();
   if(pid == -1)
     panic("fork");
   return pid;
 }
 
-// Original parsing code - keeping it simple
+//PAGEBREAK!
+// Constructors
+
 struct cmd*
 execcmd(void)
 {
   struct execcmd *cmd;
+
   cmd = malloc(sizeof(*cmd));
   memset(cmd, 0, sizeof(*cmd));
   cmd->type = EXEC;
@@ -349,6 +213,7 @@ struct cmd*
 redircmd(struct cmd *subcmd, char *file, char *efile, int mode, int fd)
 {
   struct redircmd *cmd;
+
   cmd = malloc(sizeof(*cmd));
   memset(cmd, 0, sizeof(*cmd));
   cmd->type = REDIR;
@@ -364,6 +229,7 @@ struct cmd*
 pipecmd(struct cmd *left, struct cmd *right)
 {
   struct pipecmd *cmd;
+
   cmd = malloc(sizeof(*cmd));
   memset(cmd, 0, sizeof(*cmd));
   cmd->type = PIPE;
@@ -376,6 +242,7 @@ struct cmd*
 listcmd(struct cmd *left, struct cmd *right)
 {
   struct listcmd *cmd;
+
   cmd = malloc(sizeof(*cmd));
   memset(cmd, 0, sizeof(*cmd));
   cmd->type = LIST;
@@ -388,12 +255,15 @@ struct cmd*
 backcmd(struct cmd *subcmd)
 {
   struct backcmd *cmd;
+
   cmd = malloc(sizeof(*cmd));
   memset(cmd, 0, sizeof(*cmd));
   cmd->type = BACK;
   cmd->cmd = subcmd;
   return (struct cmd*)cmd;
 }
+//PAGEBREAK!
+// Parsing
 
 char whitespace[] = " \t\r\n\v";
 char symbols[] = "<|>&;()";
@@ -403,6 +273,7 @@ gettoken(char **ps, char *es, char **q, char **eq)
 {
   char *s;
   int ret;
+
   s = *ps;
   while(s < es && strchr(whitespace, *s))
     s++;
@@ -435,6 +306,7 @@ gettoken(char **ps, char *es, char **q, char **eq)
   }
   if(eq)
     *eq = s;
+
   while(s < es && strchr(whitespace, *s))
     s++;
   *ps = s;
@@ -445,6 +317,7 @@ int
 peek(char **ps, char *es, char *toks)
 {
   char *s;
+
   s = *ps;
   while(s < es && strchr(whitespace, *s))
     s++;
@@ -462,11 +335,12 @@ parsecmd(char *s)
 {
   char *es;
   struct cmd *cmd;
+
   es = s + strlen(s);
   cmd = parseline(&s, es);
   peek(&s, es, "");
   if(s != es){
-    printf("leftovers: %s\n", s);
+    fprintf(2, "leftovers: %s\n", s);
     panic("syntax");
   }
   nulterminate(cmd);
@@ -477,6 +351,7 @@ struct cmd*
 parseline(char **ps, char *es)
 {
   struct cmd *cmd;
+
   cmd = parsepipe(ps, es);
   while(peek(ps, es, "&")){
     gettoken(ps, es, 0, 0);
@@ -493,6 +368,7 @@ struct cmd*
 parsepipe(char **ps, char *es)
 {
   struct cmd *cmd;
+
   cmd = parseexec(ps, es);
   if(peek(ps, es, "|")){
     gettoken(ps, es, 0, 0);
@@ -506,6 +382,7 @@ parseredirs(struct cmd *cmd, char **ps, char *es)
 {
   int tok;
   char *q, *eq;
+
   while(peek(ps, es, "<>")){
     tok = gettoken(ps, es, 0, 0);
     if(gettoken(ps, es, &q, &eq) != 'a')
@@ -529,6 +406,7 @@ struct cmd*
 parseblock(char **ps, char *es)
 {
   struct cmd *cmd;
+
   if(!peek(ps, es, "("))
     panic("parseblock");
   gettoken(ps, es, 0, 0);
@@ -547,10 +425,13 @@ parseexec(char **ps, char *es)
   int tok, argc;
   struct execcmd *cmd;
   struct cmd *ret;
+
   if(peek(ps, es, "("))
     return parseblock(ps, es);
+
   ret = execcmd();
   cmd = (struct execcmd*)ret;
+
   argc = 0;
   ret = parseredirs(ret, ps, es);
   while(!peek(ps, es, "|)&;")){
@@ -570,6 +451,7 @@ parseexec(char **ps, char *es)
   return ret;
 }
 
+// NUL-terminate all the counted strings.
 struct cmd*
 nulterminate(struct cmd *cmd)
 {
@@ -579,29 +461,35 @@ nulterminate(struct cmd *cmd)
   struct listcmd *lcmd;
   struct pipecmd *pcmd;
   struct redircmd *rcmd;
+
   if(cmd == 0)
     return 0;
+
   switch(cmd->type){
   case EXEC:
     ecmd = (struct execcmd*)cmd;
     for(i=0; ecmd->argv[i]; i++)
       *ecmd->eargv[i] = 0;
     break;
+
   case REDIR:
     rcmd = (struct redircmd*)cmd;
     nulterminate(rcmd->cmd);
     *rcmd->efile = 0;
     break;
+
   case PIPE:
     pcmd = (struct pipecmd*)cmd;
     nulterminate(pcmd->left);
     nulterminate(pcmd->right);
     break;
+
   case LIST:
     lcmd = (struct listcmd*)cmd;
     nulterminate(lcmd->left);
     nulterminate(lcmd->right);
     break;
+
   case BACK:
     bcmd = (struct backcmd*)cmd;
     nulterminate(bcmd->cmd);
