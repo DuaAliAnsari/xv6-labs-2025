@@ -1,9 +1,7 @@
-
 #include "kernel/types.h"
 #include "user/user.h"
 #include "kernel/fcntl.h"
 
-// Parsed command representation
 #define EXEC  1   
 #define REDIR 2
 #define PIPE  3
@@ -13,7 +11,6 @@
 #define HISTORY_SIZE 10
 #define MAX_CMD_LEN 100
 
-// Command history storage
 static char history[HISTORY_SIZE][MAX_CMD_LEN];
 static int history_count = 0;
 
@@ -55,40 +52,34 @@ struct backcmd {
 
 int fork1(void);
 void panic(char*);
-struct cmd parsecmd(char);
-void runcmd(struct cmd*) _attribute_((noreturn));
+struct cmd* parsecmd(char*);
+void runcmd(struct cmd*) __attribute__((noreturn));
 
-// Helper functions for new features
 void add_to_history(char *cmd);
 void show_history(void);
 int try_tab_complete(char *buf, int len);
 
-// Enhanced getcmd - simpler approach
 int
 getcmd(char *buf, int nbuf, int batch_mode)
 {
-  // Only show prompt in interactive mode
-  if(!batch_mode) {
+  if(batch_mode == 0) {
     write(2, "$ ", 2);
   }
   
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
-  if(buf[0] == 0) // EOF
+  if(buf[0] == 0)
     return -1;
   
-  // Check if user wants tab completion (command ends with tab)
-  if(!batch_mode) {
+  if(batch_mode == 0) {
     int len = strlen(buf);
     if(len > 1 && buf[len-2] == '\t') {
-      buf[len-2] = 0; // Remove tab and newline
+      buf[len-2] = 0;
       int new_len = try_tab_complete(buf, len-2);
       if(new_len > 0) {
-        // Add newline back
         buf[new_len] = '\n';
         buf[new_len+1] = 0;
       } else {
-        // Add newline back  
         buf[len-2] = '\n';
         buf[len-1] = 0;
       }
@@ -98,16 +89,13 @@ getcmd(char *buf, int nbuf, int batch_mode)
   return 0;
 }
 
-// Simple built-in wait command - FIXED
 int
 is_wait_command(char *cmd)
 {
   char *p = cmd;
   
-  // Skip whitespace
   while(*p == ' ' || *p == '\t') p++;
   
-  // Check if it's exactly "wait"
   if(p[0] == 'w' && p[1] == 'a' && p[2] == 'i' && p[3] == 't') {
     char next = p[4];
     if(next == 0 || next == '\n' || next == ' ' || next == '\t') {
@@ -117,14 +105,11 @@ is_wait_command(char *cmd)
   return 0;
 }
 
-// Check for history command
 int
 is_history_command(char *cmd)
 {
-  // Skip whitespace
   while(*cmd == ' ' || *cmd == '\t') cmd++;
   
-  // Check if it's "history"
   if(cmd[0] == 'h' && cmd[1] == 'i' && cmd[2] == 's' && cmd[3] == 't' && 
      cmd[4] == 'o' && cmd[5] == 'r' && cmd[6] == 'y') {
     char next = cmd[7];
@@ -135,26 +120,21 @@ is_history_command(char *cmd)
   return 0;
 }
 
-// Add command to history
 void
 add_to_history(char *cmd)
 {
   int i, len;
   
-  // Don't add empty commands or history command itself
   if(!cmd || cmd[0] == 0 || cmd[0] == '\n' || is_history_command(cmd))
     return;
     
-  // Find length, removing newline if present
   len = 0;
   while(cmd[len] && cmd[len] != '\n' && len < MAX_CMD_LEN - 1)
     len++;
   
-  // Don't add if too short
   if(len < 1)
     return;
   
-  // Copy to history buffer
   for(i = 0; i < len; i++)
     history[history_count % HISTORY_SIZE][i] = cmd[i];
   history[history_count % HISTORY_SIZE][i] = 0;
@@ -162,7 +142,6 @@ add_to_history(char *cmd)
   history_count++;
 }
 
-// Show command history
 void
 show_history(void)
 {
@@ -173,7 +152,6 @@ show_history(void)
     return;
   }
   
-  // Show up to HISTORY_SIZE recent commands
   count = (history_count > HISTORY_SIZE) ? HISTORY_SIZE : history_count;
   start = (history_count > HISTORY_SIZE) ? (history_count - HISTORY_SIZE) : 0;
   
@@ -183,7 +161,6 @@ show_history(void)
   }
 }
 
-// Simple tab completion - FIXED  
 int
 try_tab_complete(char *buf, int len)
 {
@@ -192,23 +169,19 @@ try_tab_complete(char *buf, int len)
   int i, matches = 0, match_idx = -1;
   int word_len = len;
   
-  // Remove any trailing spaces to get the actual command
   while(word_len > 0 && (buf[word_len-1] == ' ' || buf[word_len-1] == '\t'))
     word_len--;
   
   if(word_len == 0)
     return 0;
   
-  // Look for matches
   for(i = 0; commands[i]; i++) {
     int j, match = 1;
     int cmd_len = strlen(commands[i]);
     
-    // Only match if user input is shorter than command
     if(word_len >= cmd_len)
       continue;
     
-    // Check if command starts with what user typed
     for(j = 0; j < word_len; j++) {
       if(commands[i][j] != buf[j]) {
         match = 0;
@@ -222,18 +195,15 @@ try_tab_complete(char *buf, int len)
     }
   }
   
-  // If exactly one match, complete it
   if(matches == 1) {
     char *cmd = commands[match_idx];
     int cmd_len = strlen(cmd);
     int i;
     
-    // Copy the full command
     for(i = 0; i < cmd_len && i < MAX_CMD_LEN - 2; i++) {
       buf[i] = cmd[i];
     }
     
-    // Add space
     if(i < MAX_CMD_LEN - 1) {
       buf[i] = ' ';
       i++;
@@ -244,7 +214,6 @@ try_tab_complete(char *buf, int len)
     return i;
   }
   
-  // If multiple matches, show them
   if(matches > 1) {
     printf("Multiple matches: ");
     for(i = 0; commands[i]; i++) {
@@ -268,10 +237,9 @@ try_tab_complete(char *buf, int len)
     printf("\n");
   }
   
-  return 0; // No completion made
+  return 0;
 }
 
-// Execute cmd.  Never returns.
 void
 runcmd(struct cmd *cmd)
 {
@@ -353,9 +321,10 @@ main(int argc, char *argv[])
 {
   static char buf[100];
   int fd;
-  int batch_mode = 0;
+  int batch_mode;
 
-  // Check for batch mode
+  batch_mode = 0;
+
   if(argc > 1) {
     batch_mode = 1;
     fd = open(argv[1], O_RDONLY);
@@ -368,7 +337,6 @@ main(int argc, char *argv[])
     close(fd);
   }
 
-  // Ensure that three file descriptors are open.
   while((fd = open("console", O_RDWR)) >= 0){
     if(fd >= 3){
       close(fd);
@@ -376,42 +344,34 @@ main(int argc, char *argv[])
     }
   }
 
-  // Read and run input commands.
   while(getcmd(buf, sizeof(buf), batch_mode) >= 0){
-    // Skip leading whitespace
     char *cmd = buf;
     while(*cmd == ' ' || *cmd == '\t') cmd++;
     
-    if(cmd[0] == 0 || cmd[0] == '\n') // blank line
+    if(cmd[0] == 0 || cmd[0] == '\n')
       continue;
 
-    // Add non-empty commands to history
-    if(!batch_mode) {
+    if(batch_mode == 0) {
       add_to_history(cmd);
     }
 
-    // Handle built-in wait command
     if(is_wait_command(cmd)) {
       wait(0);
       continue;
     }
     
-    // Handle built-in history command
     if(is_history_command(cmd)) {
       show_history();
       continue;
     }
 
-    // Handle cd command (must be done by parent)
     if(cmd[0] == 'c' && cmd[1] == 'd' && cmd[2] == ' '){
-      // chdir must be called by the parent, not the child.
-      cmd[strlen(cmd)-1] = 0;  // chop \n
+      cmd[strlen(cmd)-1] = 0;
       if(chdir(cmd+3) < 0)
         printf("cannot cd %s\n", cmd+3);
       continue;
     }
     
-    // Fork and execute other commands
     if(fork1() == 0)
       runcmd(parsecmd(cmd));
     wait(0);
@@ -501,8 +461,8 @@ backcmd(struct cmd *subcmd)
   return (struct cmd*)cmd;
 }
 
-char whitespace[] = " \t\r\n\v";
-char symbols[] = "<|>&;()";
+char whitespace[] = {' ', '\t', '\r', '\n', '\v', 0};
+char symbols[] = {'<', '|', '>', '&', ';', '(', ')', 0};
 
 int
 gettoken(char **ps, char *es, char **q, char **eq)
@@ -561,10 +521,10 @@ peek(char **ps, char *es, char *toks)
   return *s && strchr(toks, *s);
 }
 
-struct cmd parseline(char, char);
-struct cmd parsepipe(char, char);
-struct cmd parseexec(char, char);
-struct cmd nulterminate(struct cmd);
+struct cmd* parseline(char**, char*);
+struct cmd* parsepipe(char**, char*);
+struct cmd* parseexec(char**, char*);
+struct cmd* nulterminate(struct cmd*);
 
 struct cmd*
 parsecmd(char *s)
@@ -630,7 +590,7 @@ parseredirs(struct cmd *cmd, char **ps, char *es)
     case '>':
       cmd = redircmd(cmd, q, eq, O_WRONLY|O_CREATE|O_TRUNC, 1);
       break;
-    case '+':  // >>
+    case '+':
       cmd = redircmd(cmd, q, eq, O_WRONLY|O_CREATE, 1);
       break;
     }

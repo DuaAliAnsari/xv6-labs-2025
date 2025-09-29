@@ -3,7 +3,7 @@
 #include "user/user.h"
 #include "kernel/fs.h"
 
-// Regular expression matching functions from grep.c
+//regular expression matching functions from grep.c
 int matchhere(char*, char*);
 int matchstar(int, char*, char*);
 
@@ -53,7 +53,7 @@ void find(char *path, char *pattern) {
   }
   
   if (st.type == T_FILE) {
-    // Extract filename from path
+    //extract filename from path
     char *fname = path + strlen(path);
     while (fname > path && fname[-1] != '/')
       fname--;
@@ -91,11 +91,11 @@ void find(char *path, char *pattern) {
     if (stat(buf, &st) < 0)
       continue;
     
-    // Check if filename matches the regex pattern
+    //check if filename matches the regex pattern
     if (match(pattern, name))
       printf("%s\n", buf);
     
-    // Recursively search subdirectories
+//recursively search subdirectories
     if (st.type == T_DIR)
       find(buf, pattern);
   }
