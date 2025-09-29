@@ -67,8 +67,7 @@ getcmd(char *buf, int nbuf, int batch_mode)
   }
   
   memset(buf, 0, nbuf);
-  gets(buf, nbuf);
-  if(buf[0] == 0)
+  if(gets(buf, nbuf) == 0)
     return -1;
   
   if(batch_mode == 0) {
@@ -323,18 +322,18 @@ main(int argc, char *argv[])
   int fd;
   int batch_mode;
 
-  batch_mode = 0;
-
-  if(argc > 1) {
+  if(argc >= 2) {
     batch_mode = 1;
     fd = open(argv[1], O_RDONLY);
     if(fd < 0){
-      printf("cannot open %s\n", argv[1]);
+      fprintf(2, "cannot open %s\n", argv[1]);
       exit(1);
     }
     close(0);
     dup(fd);
     close(fd);
+  } else {
+    batch_mode = 0;
   }
 
   while((fd = open("console", O_RDWR)) >= 0){
