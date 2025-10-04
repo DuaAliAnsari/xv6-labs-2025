@@ -1,0 +1,6 @@
+1. Usertrap()
+2. 7, it represents SYS_exec system call number
+3. user mode
+4. Panic instruction: lw a3,0(zero)
+5. Address 0 is not mapped in kernel space
+6. init, 1
