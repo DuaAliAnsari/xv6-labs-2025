@@ -6,6 +6,20 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "vm.h"
+uint64
+sys_interpose(void)
+{
+  int mask;
+  char path[MAXPATH]; // buffer for the string
+
+  argint(0, &mask);                
+  argstr(1, path, MAXPATH);        // copy string into buffer
+
+  struct proc *p = myproc();
+  p->mask = mask;
+
+  return 0;
+}
 
 uint64
 sys_exit(void)
