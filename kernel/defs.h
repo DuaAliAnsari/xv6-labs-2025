@@ -59,7 +59,10 @@ void            ireclaim(int);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
-
+void* spg_alloc(void);
+void spg_free(void*);
+void initlog(int, struct superblock*);
+void log_write(struct buf*);
 // log.c
 void            initlog(int, struct superblock*);
 void            log_write(struct buf*);

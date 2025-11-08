@@ -16,7 +16,30 @@ pagetable_t kernel_pagetable;
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
-
+int map_superpage(pagetable_t pagetable, uint64 va, uint64 pa, int perm) {
+  if(va % SUPERPAGE_SIZE != 0)
+    panic("map_superpage: va not aligned");
+  if(pa % SUPERPAGE_SIZE != 0)
+    panic("map_superpage: pa not aligned");
+  pte_t *pte_l2 = &pagetable[PX(2, va)];
+  pagetable_t pagetable_l1;
+  if(*pte_l2 & PTE_V) {
+    if(PTE_LEAF(*pte_l2))
+      panic("map_superpage: already mapped as huge page");
+    pagetable_l1 = (pagetable_t)PTE2PA(*pte_l2);
+  } else {
+    pagetable_l1 = (pagetable_t)kalloc();
+    if(pagetable_l1 == 0)
+      return -1;
+    memset(pagetable_l1, 0, PGSIZE);
+    *pte_l2 = PA2PTE(pagetable_l1) | PTE_V;
+  }
+  pte_t *pte_l1 = &pagetable_l1[PX(1, va)];
+  if(*pte_l1 & PTE_V)
+    panic("map_superpage: remap");
+  *pte_l1 = PA2PTE(pa) | perm | PTE_V;
+  return 0;
+}
 // Make a direct-map page table for the kernel.
 pagetable_t
 kvmmake(void)
