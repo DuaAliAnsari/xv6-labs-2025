@@ -7,6 +7,10 @@
 #include "proc.h"
 #include "vm.h"
 
+uint64 sys_getsyscallcount(void){
+struct proc *p = myproc();
+return p-> syscall_count;}
+
 uint64
 sys_exit(void)
 {

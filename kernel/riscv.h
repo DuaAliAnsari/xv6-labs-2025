@@ -1,5 +1,8 @@
 #ifndef __ASSEMBLER__
-
+#define PGROUNDUP_2M(sz)  (((sz)+((2*1024*1024)-1)) & ~((2*1024*1024)-1))
+#define PGROUNDDOWN_2M(a) (((a)) & ~((2*1024*1024)-1))
+#define SUPERPAGE_SIZE (2*1024*1024)
+#define PTE_LEAF(pte) (((pte) & (PTE_R | PTE_W | PTE_X)) != 0)
 // which hart (core) is this?
 static inline uint64
 r_mhartid()
