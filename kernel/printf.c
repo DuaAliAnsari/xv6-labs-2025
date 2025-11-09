@@ -15,6 +15,21 @@
 #include "defs.h"
 #include "proc.h"
 
+void
+backtrace(void)
+{
+  printf("backtrace:\n");
+  
+  uint64 fp = r_fp();
+  uint64 top = PGROUNDUP(fp);
+  uint64 bottom = PGROUNDDOWN(fp);
+  
+  while(fp >= bottom && fp < top) {
+    uint64 ra = *(uint64*)(fp - 8);
+    printf("%p\n", (void *)ra);  // Cast to (void *)
+    fp = *(uint64*)(fp - 16);
+  }
+}
 volatile int panicking = 0; // printing a panic message
 volatile int panicked = 0; // spinning forever at end of a panic
 

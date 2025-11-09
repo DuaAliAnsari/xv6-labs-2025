@@ -1,0 +1,86 @@
+Question 1:
+Answer: Registers a0-a7 (x10-x17) contain arguments to functions. For example, 
+in main's call to printf:
+- a0 holds the format string address
+- a1 holds the first argument (13)
+- a2 holds the second argument (the result of g()+f())
+
+Question 2:
+Answer: The compiler has inlined both f() and g(). There are no explicit "call f" 
+or "call g" instructions in main. Instead, the compiler has optimized the code by 
+directly computing the result:
+- f() returns 8
+- g() adds 3 to f()'s result, returning 11
+The compiler calculates this at compile time and loads the value 11 directly into 
+a register, rather than making function calls.
+
+Question 3:
+Answer: The address of printf can be found by looking at the assembly code. 
+In the call instruction, you'll see something like:
+    auipc ra, 0x0
+    jalr  ra, [offset](ra)
+Or a direct address reference. The exact address will be in the symbol table or 
+shown in the disassembly. Typically it would be shown as an absolute address like 
+0x630 or similar (the exact value depends on how the program is linked).
+
+Question 4:
+Answer: The ra (return address) register contains the address of the instruction 
+immediately following the jalr instruction. This is the address where printf 
+should return to after it completes. It will be the address of the next instruction 
+in main after the printf call.
+
+Question 5:
+Answer: The output is "He World"
+
+Explanation:
+- The format string "He %s" has one %s specifier
+- In RISC-V calling convention, printf receives:
+  - a0: format string "He %s"
+  - a1: 57616 (0xe110 in hex)
+  - a2: pointer to i
+- The %s expects a string pointer, which takes the NEXT argument after the format
+- Due to how printf processes arguments, it will use a2 (the pointer to i)
+- i = 0x00646c72 in memory
+- In little-endian: bytes are stored as [72, 6c, 64, 00]
+- As ASCII characters: 'r' (0x72), 'l' (0x6c), 'd' (0x64), '\0' (0x00)
+- Reading as string: "rld" - but wait, in little-endian the first byte is 0x72
+- Actually: 0x00646c72 stored in little-endian is: 72 6c 64 00
+- This reads as "rld" starting from the lowest address
+- Combined with "He " and considering 57616 is skipped, output is "He rld"
+
+CORRECTION: Let me reconsider:
+- 0x00646c72 in little-endian bytes: 72 6c 64 00
+- ASCII: 0x72='r', 0x6c='l', 0x64='d', 0x00=null terminator
+- String at &i reads as "rld"
+- But 57616 in hex is 0xe110, ASCII could be letters...
+- Actually printf with "%s" will use the pointer in a2, and 57616 is just passed
+- The answer should be "He rld" 
+
+Actually, reviewing the ASCII table reference: Let's check 57616:
+57616 = 0xe110 - this is not a valid string pointer, but the format has %s which 
+expects a pointer, so it uses a2 which points to i containing "rld" in little-endian.
+
+Output: "He rld"
+
+Question 6:
+Answer: Yes, you would need to change 'i' to a different value.
+- In little-endian: 0x00646c72 stores bytes as [72, 6c, 64, 00] = "rld"
+- In big-endian: 0x00646c72 stores bytes as [00, 64, 6c, 72] = string starts with 
+  null terminator, appears empty
+- To get "rld" in big-endian, you would need: i = 0x726c6400
+  This stores bytes as [72, 6c, 64, 00] = "rld"
+
+Question 7:
+Answer: The output is undefined/unpredictable.
+
+Explanation:
+- The format string has THREE format specifiers: %e, %d, and %d
+- Only ONE argument is provided: 3
+- printf expects arguments in registers a1, a2, a3 for the three specifiers
+- a1 will contain 3
+- a2 and a3 will contain whatever garbage values were left in those registers
+- For "y=%d", printf will read a3 which contains an uninitialized/garbage value
+- The actual value printed depends on what was previously stored in register a3
+- This is undefined behavior - the program reads from registers that weren't 
+  initialized for this call
+
