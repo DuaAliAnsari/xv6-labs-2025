@@ -8,26 +8,6 @@
 #include "vm.h"
 
 uint64
-sys_sleep(void)
-{
-  int n;
-  argint(0, &n);  // Just call it, don't check return value
-  
-  backtrace();  // Add backtrace call here
-  
-  acquire(&tickslock);
-  uint ticks0 = ticks;
-  while(ticks - ticks0 < n){
-    if(myproc()->killed){
-      release(&tickslock);
-      return -1;
-    }
-    sleep(&ticks, &tickslock);
-  }
-  release(&tickslock);
-  return 0;
-}
-uint64
 sys_exit(void)
 {
   int n;
@@ -85,25 +65,15 @@ sys_sbrk(void)
 uint64
 sys_pause(void)
 {
-  int n;
-  uint ticks0;
-
-  argint(0, &n);
-  if(n < 0)
-    n = 0;
-  acquire(&tickslock);
-  ticks0 = ticks;
-  while(ticks - ticks0 < n){
-    if(killed(myproc())){
-      release(&tickslock);
+  backtrace();  // Add this line
+  
+  for(;;) {
+    if(myproc()->killed) {
       return -1;
     }
     sleep(&ticks, &tickslock);
   }
-  release(&tickslock);
-  return 0;
 }
-
 uint64
 sys_kill(void)
 {

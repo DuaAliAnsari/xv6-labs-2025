@@ -196,7 +196,7 @@ UPROGS=\
 	$U/_forphan\
 	$U/_dorphan\
         $U/_call\
-
+        $U/_bttest\
 
 
 ifeq ($(LAB),syscall)
