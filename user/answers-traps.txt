@@ -1,0 +1,13 @@
+1. Registers a0-a7 contain arguments to functions. Register a2 holds 13.
+
+2. There is no call to function f or g in main's assembly code. The compiler inlined both functions.
+
+3. Address 0x630 (may vary, check your call.asm).
+
+4. 0x38 (the return address of the instruction right after the jalr).
+
+5. HE110 World
+
+6. i = 0x726c6400. No need to change 57616.
+
+7. A random/garbage value from register a2.

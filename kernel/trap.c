@@ -44,7 +44,7 @@ usertrap(void)
 
   // send interrupts and exceptions to kerneltrap(),
   // since we're now in the kernel.
-  w_stvec((uint64)kernelvec);  //DOC: kernelvec
+  w_stvec((uint64)kernelvec);
 
   struct proc *p = myproc();
   
@@ -81,8 +81,29 @@ usertrap(void)
     kexit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(which_dev == 2) {
+    // ALARM HANDLING: Check if alarm is set and not already in progress
+    if(p->alarm_interval > 0 && p->alarm_handler != 0 && !p->alarm_in_progress) {
+      p->alarm_ticks++;
+      
+      // Check if alarm should fire
+      if(p->alarm_ticks >= p->alarm_interval) {
+        // Reset tick counter
+        p->alarm_ticks = 0;
+        
+        // Save current trapframe
+        p->saved_trapframe = *p->trapframe;
+        
+        // Mark alarm as in progress to prevent re-entrant calls
+        p->alarm_in_progress = 1;
+        
+        // Set program counter to alarm handler
+        p->trapframe->epc = (uint64)p->alarm_handler;
+      }
+    }
+    
     yield();
+  }
 
   prepare_return();
 
@@ -216,4 +237,3 @@ devintr()
     return 0;
   }
 }
-

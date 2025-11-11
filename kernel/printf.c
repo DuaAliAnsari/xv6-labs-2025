@@ -15,6 +15,31 @@
 #include "defs.h"
 #include "proc.h"
 
+void
+backtrace(void)
+{
+  printf("backtrace:\n");
+  
+  uint64 fp = r_fp();  // Get current frame pointer
+  uint64 page_start = PGROUNDDOWN(fp);  // Get the page boundary
+  uint64 page_end = page_start + PGSIZE;  // Calculate page end
+  
+  // Walk up the stack frames
+  while(fp >= page_start && fp < page_end) {
+    uint64 return_addr = *(uint64*)(fp - 8);  // Return address is at fp-8
+    printf("%p\n", (void *)return_addr);  // Cast to void * here
+    
+    uint64 prev_fp = *(uint64*)(fp - 16);  // Previous frame pointer is at fp-16
+    
+    // Stop if we've reached an invalid frame pointer
+    if(prev_fp < page_start || prev_fp >= page_end)
+      break;
+      
+    fp = prev_fp;  // Move to the previous frame
+  }
+}
+
+
 volatile int panicking = 0; // printing a panic message
 volatile int panicked = 0; // spinning forever at end of a panic
 
@@ -139,6 +164,7 @@ panic(char *s)
   panicking = 1;
   printf("panic: ");
   printf("%s\n", s);
+  backtrace();
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;

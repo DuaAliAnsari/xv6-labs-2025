@@ -2,6 +2,9 @@
 
 struct stat;
 
+int sigalarm(int ticks, void (*handler)());
+int sigreturn(void);
+
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
