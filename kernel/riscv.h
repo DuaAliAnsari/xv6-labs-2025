@@ -8,7 +8,10 @@ r_mhartid()
   asm volatile("csrr %0, mhartid" : "=r" (x) );
   return x;
 }
-
+#define SUPERPAGE_SIZE (512 * PGSIZE)  // 2MB
+#define PTE_SUPERPAGE(pte) (((pte) & (PTE_V | PTE_R | PTE_W | PTE_X)) && \
+                            ((pte) & PTE_V) && \
+                            (((pte) >> 10) & 0x1FF) == 0)  // Level-1 PTE with rwx bits
 // Machine Status Register, mstatus
 
 #define MSTATUS_MPP_MASK (3L << 11) // previous mode.

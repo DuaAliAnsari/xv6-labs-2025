@@ -1,0 +1,42 @@
+EXPLANATION OF PAGE TABLE ENTRIES:
+
+va 0x0 - 0x2000: Program text and data
+  - perm 0x5B = Readable, Writable, Executable, User, Valid
+  - These are the first few pages containing code and data
+
+va 0xFFFFD000: Guard page
+  - pte 0x0, pa 0x0, perm 0x0
+  - Invalid page, serves as guard page below the stack
+
+va 0xFFFFE000: User stack
+  - perm 0xC7 = Readable, Writable, User, Valid (but NOT executable)
+  - One page for the user stack
+
+va 0xFFFFF000: Trampoline page
+  - perm 0x4B = Readable, Executable, Valid (but NOT user-accessible, NOT writable)
+  - Contains trampoline code for entering/exiting kernel
+  - Shared across all processes at same virtual address
+// ADDITIONAL SYSCALLS THAT COULD BE SPED UP
+Other system calls that could use the USYSCALL shared page:
+
+1. getppid() - Parent process ID
+   - Rarely changes, could be cached in USYSCALL
+
+2. getuid() / getgid() - User/Group ID
+   - Static for process lifetime
+
+3. time() / gettimeofday() - Current time
+   - Could map a page with current time updated by timer interrupt
+   - Linux uses vDSO for this (Virtual Dynamic Shared Object)
+
+4. CPU core ID (getcpu() in Linux)
+   - Useful for per-CPU optimizations
+
+5. System information (uname())
+   - Hostname, kernel version, etc.
+
+How it works:
+- Kernel maintains shared read-only page(s) mapped into each process
+- Kernel updates values when they change
+- User process reads directly without syscall overhead
+- Must be read-only to prevent user tampering

@@ -15,6 +15,8 @@ struct superblock;
 #ifdef LAB_LOCK
 struct rwspinlock;
 #endif
+extern pagetable_t kernel_pagetable;
+void            vmprint(pagetable_t);
 
 // bio.c
 void            binit(void);
@@ -66,7 +68,11 @@ void            ireclaim(int);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
-
+void*           superalloc(void);      
+void            superfree(void *);     
+void            superinit(void);       
+void            superreserve(void);    
+int             superdemote(void*);
 // log.c
 void            initlog(int, struct superblock*);
 void            log_write(struct buf*);
@@ -191,7 +197,8 @@ void            vmprint(pagetable_t);
 #ifdef LAB_PGTBL
 pte_t*          pgpte(pagetable_t, uint64);
 #endif
-
+int             mapsuperpage(pagetable_t, uint64, uint64, int);  
+int             issuperpage(pagetable_t, uint64);   
 // plic.c
 void            plicinit(void);
 void            plicinithart(void);

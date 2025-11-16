@@ -1,4 +1,4 @@
-#include "types.h"
+ #include "types.h"
 #include "riscv.h"
 #include "param.h"
 #include "defs.h"
@@ -107,17 +107,13 @@ sys_pgpte(void)
 #endif
 
 #ifdef LAB_PGTBL
-int
+uint64
 sys_kpgtbl(void)
 {
-  struct proc *p;  
-
-  p = myproc();
-  vmprint(p->pagetable);
+  vmprint(kernel_pagetable);
   return 0;
 }
 #endif
-
 
 uint64
 sys_kill(void)
