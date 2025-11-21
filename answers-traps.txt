@@ -1,0 +1,13 @@
+1)a0-a7. a2 holds 13.
+
+2)No calls to f or g. Both functions were inlined.
+
+3)0x6f6
+
+4) 0x34
+
+5)He110 World
+
+6)i = 0x726c6400. 57616 unchanged.
+
+7)Garbage value uninitialized register a2.

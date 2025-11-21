@@ -54,6 +54,7 @@ void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, int, uint64, uint, uint);
 void            itrunc(struct inode*);
 void            ireclaim(int);
+void            backtrace(void);
 
 // kalloc.c
 void*           kalloc(void);
@@ -142,7 +143,8 @@ void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
 void            prepare_return(void);
-
+uint64            usertrap(void);
+//void            kerneltrap(void);
 // uart.c
 void            uartinit(void);
 void            uartintr(void);

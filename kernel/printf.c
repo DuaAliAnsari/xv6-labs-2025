@@ -1,7 +1,6 @@
 //
 // formatted console output -- printf, panic.
 //
-
 #include <stdarg.h>
 
 #include "types.h"
@@ -139,13 +138,29 @@ panic(char *s)
   panicking = 1;
   printf("panic: ");
   printf("%s\n", s);
+  backtrace();
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
 }
 
 void
-printfinit(void)
+backtrace(void)
 {
-  initlock(&pr.lock, "pr");
+  printf("backtrace:\n");
+  
+  uint64 fp = r_fp();
+  uint64 page = PGROUNDDOWN(fp);
+  int count = 0;
+  
+  while (fp < page + PGSIZE && count < 3) {
+    uint64 ra = *(uint64*)(fp - 8);
+    printf("0x00000000%lx\n", ra);  // Full 64-bit format
+    
+    count++;
+    uint64 prev_fp = *(uint64*)(fp - 16);
+    if (prev_fp <= fp || prev_fp >= page + PGSIZE)
+      break;
+    fp = prev_fp;
+  }
 }
