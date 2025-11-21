@@ -103,5 +103,10 @@ struct proc {
   struct context context;      // swtch() here to run process
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
-  char name[16];               // Process name (debugging)
+  char name[16];
+  int alarm_interval;          // Alarm interval (0 = disabled)
+  void (*alarm_handler)();     // Pointer to alarm handler function
+  int alarm_ticks;             // Ticks until next alarm
+  int alarm_handling;          // Is alarm handler currently running?
+  struct trapframe *alarm_trapframe; // Saved trapframe for alarm               // Process name (debugging)
 };

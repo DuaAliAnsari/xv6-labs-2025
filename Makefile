@@ -194,7 +194,10 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_logstress\
-	$U/_forphan\
+       	$U/_forphan\
+        $U/_test\
+        $U/_alarmtest\
+        $U/_bttest\
 	$U/_dorphan\
 
 
