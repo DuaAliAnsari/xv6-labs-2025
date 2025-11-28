@@ -2,8 +2,6 @@
 
 struct stat;
 
-int sigalarm(int ticks, void (*handler)());
-int sigreturn(void);
 
 // system calls
 int fork(void);
@@ -27,6 +25,9 @@ int getpid(void);
 char* sys_sbrk(int,int);
 int pause(int);
 int uptime(void);
+int sigalarm(int ticks, void (*handler)());
+int sigreturn(void);
+
 
 // ulib.c
 int stat(const char*, struct stat*);

@@ -1,3 +1,4 @@
+void usertrapret(void);
 #include "types.h"
 #include "param.h"
 #include "memlayout.h"
@@ -38,14 +39,10 @@ uint64
 usertrap(void)
 {
   int which_dev = 0;
-
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
-
-  // send interrupts and exceptions to kerneltrap(),
-  // since we're now in the kernel.
+  
   w_stvec((uint64)kernelvec);
-
   struct proc *p = myproc();
   
   // save user program counter.
@@ -53,18 +50,13 @@ usertrap(void)
   
   if(r_scause() == 8){
     // system call
-
     if(killed(p))
       kexit(-1);
-
     // sepc points to the ecall instruction,
     // but we want to return to the next instruction.
     p->trapframe->epc += 4;
-
-    // an interrupt will change sepc, scause, and sstatus,
-    // so enable only now that we're done with those registers.
+    
     intr_on();
-
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
@@ -76,41 +68,36 @@ usertrap(void)
     printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
     setkilled(p);
   }
-
+  
   if(killed(p))
     kexit(-1);
-
+    
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2) {
-    // ALARM HANDLING: Check if alarm is set and not already in progress
-    if(p->alarm_interval > 0 && p->alarm_handler != 0 && !p->alarm_in_progress) {
+    // Handle alarm
+    if(p->alarm_interval > 0) {
       p->alarm_ticks++;
       
-      // Check if alarm should fire
-      if(p->alarm_ticks >= p->alarm_interval) {
+      if(p->alarm_ticks >= p->alarm_interval && !p->alarm_in_progress) {
         // Reset tick counter
         p->alarm_ticks = 0;
         
-        // Save current trapframe
-        p->saved_trapframe = *p->trapframe;
+        // Save ENTIRE current trapframe (all registers including a0 and epc)
+        p->alarm_tf = *p->trapframe;
         
-        // Mark alarm as in progress to prevent re-entrant calls
+        // Set PC to handler - this will be the NEW epc when we return
+        p->trapframe->epc = p->alarm_handler;
+        
+        // Mark alarm as active (prevent re-entrance)
         p->alarm_in_progress = 1;
-        
-        // Set program counter to alarm handler
-        p->trapframe->epc = (uint64)p->alarm_handler;
       }
     }
     
     yield();
   }
-
+  
   prepare_return();
-
-  // the user page table to switch to, for trampoline.S
   uint64 satp = MAKE_SATP(p->pagetable);
-
-  // return to trampoline.S; satp value in a0.
   return satp;
 }
 
@@ -132,7 +119,7 @@ prepare_return(void)
   w_stvec(trampoline_uservec);
 
   // set up trapframe values that uservec will need when
-  // the process next traps into the kernel.
+   // the process next traps into the kernel.
   p->trapframe->kernel_satp = r_satp();         // kernel page table
   p->trapframe->kernel_sp = p->kstack + PGSIZE; // process's kernel stack
   p->trapframe->kernel_trap = (uint64)usertrap;
